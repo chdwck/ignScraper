@@ -1,10 +1,12 @@
 import gevent.monkey
 gevent.monkey.patch_all()
 
+import json
 import urllib3
 import os
 from bs4 import BeautifulSoup
 from datetime import datetime
+import Game
 
 
 # ********** PlatformSlug Format *********
@@ -15,12 +17,18 @@ from datetime import datetime
 # n64, mac, gcn, dc, ps, ps2, nng
 # *****************************************
 
+class GameData(object):
+    def __init__(self, name, score, description, oneword, url):
+        self.name
+
+
 class IgnScraper:
     def __init__(self, platformSlug):
         self.root_url = 'http://www.ign.com/reviews/games?platformSlug='+ platformSlug +'&startIndex='
         self.urlList = []
         self.reviewList = []
         self.http = urllib3.PoolManager()
+        self.jsonData = []
 
     def urlopen(self, url):
         return self.http.request(
@@ -64,20 +72,29 @@ class IgnScraper:
             return div.text
         else:
             return div.findChild(childType).text
+    
+    def tryToGetAllChildren(self, soup, nodeType, selectType, selectName, childType):
+        parent = soup.find(nodeType, { selectType: selectName })
+        children = parent.find_all(childType)
+        return [child.text for child in children]
 
     def getBasicInfo(self, url):
         try:
             page = self.urlopen(url)
             soup = BeautifulSoup(page, 'html.parser')
-            blurb = self.tryToGet(soup, 'div', 'class', 'blurb')
-            scoreText = self.tryToGet(soup, 'div', 'class', 'score-text')
-            score = self.tryToGet(soup, 'span', 'class', 'score', 'span')
-            name = self.tryToGet(soup, 'h1', 'class', 'article-headline', 'span')
 
-            print("Name:", name.strip())
-            print("Score:", score.strip(), "-", scoreText.strip())
-            print("Desc:", blurb.strip())
-            print("Url:", url.strip())
+            name=self.tryToGet(soup, 'h1', 'class', 'article-headline', 'span').strip()
+            score=self.tryToGet(soup, 'span', 'class', 'score', 'span').strip()
+            description=self.tryToGet(soup, 'div', 'class', 'blurb').strip()
+            oneword=self.tryToGet(soup, 'div', 'class', 'score-text').strip()
+            platforms=self.tryToGetAllChildren(soup, 'div', 'class', 'objectcard-object-platforms-first', 'a')
+            url=url.strip()
+
+            print("Name:", name)
+            print("Score:", score, "-", oneword)
+            print("Desc:", description)
+            print("Url:", url)
+            print("Platforms: ", platforms)
             print("=================================================")
         except:
             print("Cant open url: ", url)
@@ -86,7 +103,3 @@ class IgnScraper:
         self.asyncGetPages()
         for url in self.reviewList:
             self.getBasicInfo(url)
-
-
-scrape = IgnScraper('ps4')
-scrape.run()
